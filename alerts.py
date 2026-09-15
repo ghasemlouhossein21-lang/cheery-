@@ -208,6 +208,12 @@ def _mask_telegram_id(telegram_id) -> str:
     return s[:2] + "*" * (len(s) - 5) + s[-3:]
 
 
+def _fix_unlimited_typo(value: str) -> str:
+    """رفع تایپوی احتمالی «نامدود» (بجای «نامحدود») در متن‌های لاگ سفارش."""
+    s = str(value or "")
+    return s.replace("نامدود", "نامحدود") if "نامدود" in s else s
+
+
 def _renewal_log_details(added_volume: float, added_days: int) -> str:
     parts = []
     if added_volume:
@@ -232,6 +238,8 @@ async def log_order_to_channel(
 ):
     from utils import now_tehran
 
+    package_text = _fix_unlimited_typo(package_text)
+    expiry_text = _fix_unlimited_typo(expiry_text)
     renewal_line = f"🔁 تمدید شده: {renewal_details}\n" if renewal_details else ""
     text = (
         f"{order_label}\n"
