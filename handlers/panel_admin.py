@@ -318,35 +318,9 @@ def _to_base36(num: int) -> str:
 
 
 def _service_username(telegram_id) -> str:
-    """نام سرویس: پیشوند قابل‌تنظیم ادمین + کد کوتاه یکتا (سازگار با مرزبان/پاسارگارد).
-
-    fix: نسخه‌ی قبلی کد بعد از پیشوند رو با «آیدی عددی کامل + ۸ رقم زمان»
-    می‌ساخت که هم خیلی طولانی بود (روی پنل‌هایی مثل مرزبان که طول یوزرنیم
-    محدوده، امکان رد شدن یا نامعتبر شدن داشت) و هم چون فقط از عدد استفاده
-    می‌کرد فضای اسم‌های ممکن محدود بود. الان شناسه‌ی کاربر با پایه‌ی ۳۶
-    (حروف+عدد) کدگذاری می‌شه که خودش کوتاه‌تره، و یک پسوند ۴ کاراکتری
-    تصادفیِ امن (حروف+عدد) هم اضافه می‌شه تا برخورد اسمی پیش نیاد.
-
-    ضمناً پیشوند دقیقاً طبق قوانین مرزبان نرمال‌سازی می‌شه (فقط
-    a-z/0-9/_، بدون آندرلاین تکراری یا در ابتدا/انتها) و کل نام نهایی
-    هیچ‌وقت از ۳۲ کاراکتر بیشتر نمی‌شه، چون این سقف واقعی مرزبان/پاسارگارده.
-    """
-    raw = str(bot_info.get("config_name_prefix") or "tg").strip().lower()
-    prefix = _USERNAME_INVALID_RE.sub("_", raw)
-    prefix = _USERNAME_MULTI_UNDERSCORE_RE.sub("_", prefix).strip("_") or "tg"
-    prefix = prefix[:20]
-
-    tid_code = _to_base36(int(telegram_id))
-    rand_code = "".join(secrets.choice(_USERNAME_ALPHABET) for _ in range(4))
-    username = f"{prefix}_{tid_code}{rand_code}"
-
-    # نرمال‌سازی نهایی + سقف ۳۲ کاراکتر (محدودیت واقعی مرزبان/پاسارگارد).
-    username = _USERNAME_MULTI_UNDERSCORE_RE.sub("_", username).strip("_")
-    if len(username) > 32:
-        username = username[:32].rstrip("_")
-    if len(username) < 3:
-        username = f"tg_{tid_code}{rand_code}"[:32]
-    return username
+    """نام سرویس به شکل tg_ + دقیقاً ۶ رقم عددی."""
+    code = secrets.randbelow(900000) + 100000
+    return f"tg_{code}"
 
 @router.callback_query(F.data == "admin_vpn_panels")
 async def open_vpn_panel_types(callback: types.CallbackQuery):
