@@ -527,7 +527,7 @@ class RichText(str):
         return result
 
 
-def _render_with_entities(template: str, entities: list[dict], values: dict) -> RichText:
+def _render_with_entities(template: str, entities: list[dict], values: dict, preserve_dynamic_entities: bool = False) -> RichText:
     if not values:
         return RichText(template, entities)
 
@@ -559,13 +559,19 @@ def _render_with_entities(template: str, entities: list[dict], values: dict) -> 
             src_n = len(token.encode("utf-16-le")) // 2
             try:
                 value = formatter.get_field(field, (), values)[0]
+                nested_entities = []
+                if preserve_dynamic_entities and isinstance(value, RichText):
+                    nested_entities = value.entities_shifted(out_pos)
                 if conv:
                     value = formatter.convert_field(value, conv)
                 value = formatter.format_field(value, spec)
             except Exception:
                 value = "{" + field + (":" + spec if spec else "") + "}"
+                nested_entities = []
             value = str(value)
             parts.append(value)
+            if nested_entities:
+                pending_dynamic_entities.extend(nested_entities)
             out_n = len(value.encode("utf-16-le")) // 2
             mappings.append((src_pos, src_pos+src_n, out_pos, out_pos+out_n))
             # Dynamic VIP category/plan names can carry a Premium Emoji too.
@@ -662,7 +668,7 @@ def text(key: str, default: str | None = None, **values) -> str:
     template, entities = _CACHE[key]
     if values:
         try:
-            return _render_with_entities(template, entities, values)
+            return _render_with_entities(template, entities, values, preserve_dynamic_entities=(key == "renew_done"))
         except Exception:
             fallback = TEXTS.get(key, default or template)
             try:
