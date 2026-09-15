@@ -721,13 +721,7 @@ async def fulfill_free_test_directly(bot, message: types.Message, user: dict, pl
         handled = await auto_fulfill_vip_via_marzban(bot, str(message.from_user.id), plan_key, order_id)
 
     if handled:
-        await send_admin_task_message(
-            bot, ADMIN_ID, "requests",
-            f"\U0001F381 \u062a\u0633\u062a \u0631\u0627\u06cc\u06af\u0627\u0646 \u062c\u062f\u06cc\u062f (\u0642\u06cc\u0645\u062a: \u0631\u0627\u06cc\u06af\u0627\u0646) \u2014 \u0628\u0647\u200c\u0635\u0648\u0631\u062a \u062e\u0648\u062f\u06a9\u0627\u0631 \u0627\u0632 \u067e\u0646\u0644 \u0645\u0631\u0632\u0628\u0627\u0646 \u0633\u0627\u062e\u062a\u0647 \u0648 \u0627\u0631\u0633\u0627\u0644 \u0634\u062f \u2705\n\n"
-            f"\U0001F464 {message.from_user.full_name}\n"
-            f"\U0001F194 {message.from_user.id}\n"
-            f"\U0001F4E6 {plan['name']}",
-        )
+        return
     else:
         await send_admin_task_message(
             bot, ADMIN_ID, "requests",
