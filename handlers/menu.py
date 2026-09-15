@@ -298,8 +298,40 @@ async def menu_renew(message: types.Message, state: FSMContext):
     if user is None:
         await answer_rich(message, t("common_start_required")); return
     configs = db.get_configs(user["id"])
-    # «تست رایگان» سرویس قابل تمدید نیست و نباید در بسته‌های قابل تمدید نمایش داده شود.
-    configs = [c for c in configs if str(c.get("plan") or "") != str(FREE_TEST_PLAN_KEY)]
+
+    # سرویس‌های تست رایگان در لیست تمدید نمایش داده نشوند.
+    filtered_configs = []
+    free_test_plan = db.get_effective_free_test_plan() or {}
+    free_test_name = str(free_test_plan.get("name") or "").strip().lower()
+
+    for c in configs:
+        plan_key = str(c.get("plan_key") or c.get("plan") or "").strip().lower()
+        plan_name = str(c.get("plan_name") or c.get("name") or "").strip().lower()
+        config_type = str(c.get("type") or "").strip().lower()
+
+        if plan_key in {
+            str(FREE_TEST_PLAN_KEY).strip().lower(),
+            "test",
+            "free_test",
+            "free-test",
+            "free_test_plan",
+            "plan_test",
+        }:
+            continue
+
+        if config_type == "test":
+            continue
+
+        if free_test_name and (
+            plan_key == free_test_name
+            or plan_key.startswith(free_test_name + " | ")
+            or plan_name == free_test_name
+        ):
+            continue
+
+        filtered_configs.append(c)
+
+    configs = filtered_configs
     if not configs:
         await answer_rich(message, "❌ هیچ سرویس قابل تمدیدی ندارید.")
         return
