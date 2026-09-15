@@ -318,9 +318,11 @@ def _to_base36(num: int) -> str:
 
 
 def _service_username(telegram_id) -> str:
-    """نام سرویس به شکل tg_ + دقیقاً ۶ رقم عددی."""
+    """نام سرویس با پیشوند تنظیم‌شده در «اطلاعات ربات» + دقیقاً ۶ رقم عددی."""
+    raw_prefix = (bot_info.get("config_name_prefix") or "tg").strip()
+    prefix = re.sub(r"[^A-Za-z0-9_]+", "", raw_prefix) or "tg"
     code = secrets.randbelow(900000) + 100000
-    return f"tg_{code}"
+    return f"{prefix}_{code}"
 
 @router.callback_query(F.data == "admin_vpn_panels")
 async def open_vpn_panel_types(callback: types.CallbackQuery):
