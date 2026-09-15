@@ -69,7 +69,7 @@ import crypto
 import panels
 import fsm_storage
 import bot_info
-from config import ADMIN_ID
+from config import ADMIN_ID, FREE_TEST_PLAN_KEY
 from states import AdminStates
 from keyboards import (
     admin_vpn_panel_types_keyboard,
@@ -93,7 +93,7 @@ from keyboards import (
     InlineKeyboardButton,
 
 )
-from utils import is_duplicate_action, now_tehran_naive, parse_int_in_range, TEHRAN_TZ, send_rich
+from utils import is_duplicate_action, now_tehran_naive, parse_int_in_range, TEHRAN_TZ, send_rich, send_photo_rich
 from text_catalog import text as t
 
 _LATIN_NAME_RE = re.compile(r"^[A-Za-z0-9]{1,32}$")
@@ -1448,17 +1448,17 @@ async def _deliver_panel_link(bot, ctx: dict, link: str):
         except Exception: expiry_date = None
     if not expiry_date and days: expiry_date = (now_tehran_naive() + timedelta(days=days)).strftime("%Y-%m-%d")
 
-    caption = (
-        "✅ سرویس با موفقیت ایجاد شد\n\n"
-        f"👤 نام کاربری سرویس : {name}\n"
-        "🇺🇳 لوکیشن: مولتی لوکیشن+تانل\n"
-        f"⏳ مدت زمان: {days_text}\n"
-        f"🗜 حجم سرویس: {volume_text}\n"
-        "👤 تعداد کاربر:نامحدود\n\n"
-        "لینک اتصال:\n"
-        f"{link}\n\n"
-        "🧑‍🦯 شما میتوانید شیوه اتصال را با فشردن دکمه زیر دریافت کنید."
-    )
+    # 🐛 فیکس: این مسیر (پنل یکپارچه‌ی مرزبان/پاسارگارد/۳ایکس‌یوآی) قبلاً کپشن
+    # تحویل را با یک متن ثابت در کد می‌ساخت و اصلاً از کاتالوگ متن قابل‌ویرایش
+    # (service_delivery_text / service_delivery_test_text) استفاده نمی‌کرد؛
+    # به همین دلیل هر ویرایشی که ادمین از بخش «✏️ ویرایش متن → 📦 تحویل سرویس»
+    # ذخیره می‌کرد، روی این مسیر هیچ اثری نداشت و پیام همیشه با فرمت پیش‌فرض
+    # قدیمی ارسال می‌شد. حالا دقیقاً مثل بقیه‌ی مسیرهای تحویل، از همان قالب
+    # قابل‌ویرایش استفاده می‌کند.
+    is_test_delivery = plan_key == FREE_TEST_PLAN_KEY
+    delivery_label = "تست رایگان" if is_test_delivery else f"{volume_text} | {days_text} | نامحدود کاربر"
+    delivery_text_key = "service_delivery_test_text" if is_test_delivery else "service_delivery_text"
+    caption = t(delivery_text_key, service_label=delivery_label, link=link)
 
     encrypted = crypto.encrypt_config(link)
     plan_name = f"{name} | {volume_text} | {days_text}"
@@ -1483,14 +1483,16 @@ async def _deliver_panel_link(bot, ctx: dict, link: str):
     try:
         if qrcode:
             photo = types.BufferedInputFile(_make_qr_bytes(link), filename="qr.png")
-            sent = await bot.send_photo(
-                int(uid), photo, caption=caption, reply_markup=config_delivery_keyboard(bot_info.get("connection_guide_url"))
+            sent = await send_photo_rich(
+                bot, int(uid), photo, caption=caption,
+                reply_markup=config_delivery_keyboard(bot_info.get("connection_guide_url"), is_test=is_test_delivery),
             )
-            if sent.photo:
+            if sent and sent.photo:
                 sent_photo_file_id = sent.photo[-1].file_id
         else:
-            await bot.send_message(
-                int(uid), caption, reply_markup=config_delivery_keyboard(bot_info.get("connection_guide_url"))
+            await send_rich(
+                bot, int(uid), caption,
+                reply_markup=config_delivery_keyboard(bot_info.get("connection_guide_url"), is_test=is_test_delivery),
             )
         order_obj = db.get_order(order_id) if order_id else None
         if plan_key and db.get_effective_plan(plan_key):
