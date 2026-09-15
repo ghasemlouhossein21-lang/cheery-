@@ -359,4 +359,3 @@ async def report_uniquepay_create_failure(bot, admin_id):
 
 def report_uniquepay_create_success():
     _uniquepay_state["create_fail_streak"] = 0
-
