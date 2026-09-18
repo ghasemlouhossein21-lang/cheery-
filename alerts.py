@@ -266,7 +266,7 @@ def admin_delivery_summary(user: dict, service_username: str, package_name: str,
     return t(
         "admin_delivery_summary",
         customer=user.get("name") or "-",
-        telegram_id=_mask_telegram_id(user.get("telegram_id")),
+        telegram_id=str(user.get("telegram_id") or "-"),
         service_username=service_username or "-",
         package_name=package_name or "-",
         amount=int(amount or 0),
