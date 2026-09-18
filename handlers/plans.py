@@ -667,14 +667,7 @@ async def pay_with_wallet(callback: types.CallbackQuery, state: FSMContext):
         handled = await auto_fulfill_vip_via_marzban(callback.bot, str(callback.from_user.id), plan_key, order_id)
 
     if handled:
-        await send_admin_task_message(
-            callback.bot, ADMIN_ID, "requests",
-            f"🛒 خرید جدید (کیف پول) — به‌صورت خودکار از پنل مرزبان ساخته و ارسال شد ✅\n\n"
-            f"👤 {callback.from_user.full_name}\n"
-            f"🆔 {callback.from_user.id}\n"
-            f"📦 {plan['name']}\n"
-            f"💰 {final_price:,} تومان",
-        )
+        return
     else:
         await send_admin_task_message(
             callback.bot, ADMIN_ID, "requests",
@@ -791,13 +784,7 @@ async def finalize_online_payment(bot, payment: dict) -> int | None:
         handled = await auto_fulfill_vip_via_marzban(bot, payment["telegram_id"], payment["plan_key"], order_id)
 
     if handled:
-        await send_admin_task_message(
-            bot, ADMIN_ID, "requests",
-            f"🛒 خرید جدید (پرداخت آنلاین - یونیک‌پی) — به‌صورت خودکار از پنل مرزبان ساخته و ارسال شد ✅\n\n"
-            f"🆔 {payment['telegram_id']}\n"
-            f"📦 {payment['plan_name']}\n"
-            f"💰 {payment['price']:,} تومان",
-        )
+        return order_id
     else:
         await send_admin_task_message(
             bot, ADMIN_ID, "requests",
