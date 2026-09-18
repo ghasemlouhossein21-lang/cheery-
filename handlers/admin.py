@@ -2323,6 +2323,8 @@ async def admin_view_user_services(callback: types.CallbackQuery):
     if not _is_admin(callback.from_user.id):
         await callback.answer("⛔ دسترسی ندارید.", show_alert=True)
         return
+        
+    await callback.answer()
 
     uid = callback.data.replace("svcs_", "")
     user = db.get_user(uid)
@@ -2345,8 +2347,6 @@ async def admin_view_user_services(callback: types.CallbackQuery):
             f"📦 سرویس‌های کاربر {uid}\n\n❌ یعنی توسط خودِ کاربر حذف شده (ولی برای شما همچنان قابل‌مشاهده‌ست).\n\nروی هرکدوم بزن برای جزئیات و مدیریت 👇",
             reply_markup=admin_services_list_keyboard(configs, uid),
         )
-    await callback.answer()
-
 
 def _remaining_days_from_date_str(date_str) -> int | None:
     """تعداد روز باقی‌مانده تا انقضا را از یک رشته تاریخ به فرمت YYYY-MM-DD محاسبه می‌کند."""
