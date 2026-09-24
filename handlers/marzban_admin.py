@@ -891,7 +891,7 @@ async def _deliver_marzban_link(bot, ctx: dict, link: str):
         else:
             admin_package_name = f"{volume_text} | {days_text}"
         admin_amount = order_obj.get("price", 0) if order_obj else 0
-        admin_summary = alerts.admin_delivery_summary(user, name, admin_package_name, admin_amount)
+        admin_summary = alerts.admin_delivery_summary(user, name, admin_package_name, admin_amount, payment_method=(order_obj.get("payment_method", "-") if order_obj else "-"))
         await send_rich(bot, ADMIN_ID, admin_summary)
 
     if isinstance(log_result, Exception):
