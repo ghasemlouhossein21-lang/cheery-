@@ -14,8 +14,7 @@ from text_catalog import text as t
 from subscription import fetch_subscription_info, usage_bar, days_remaining, get_live_service_status
 from keyboards import back_button, fair_use_keyboard, service_alert_80_90_keyboard, service_expired_alert_keyboard
 import bot_info
-from config import ADMIN_ID
-from utils import send_notification_sticker, _repair_custom_emoji_entities
+from utils import send_notification_sticker, _repair_custom_emoji_entities, _sanitize_entities_for_text
 
 logger = logging.getLogger(__name__)
 
@@ -145,41 +144,19 @@ def expiry_text_from_panel_data(panel_data: dict | None, fallback: str | None = 
 
 async def log_renewal_to_channel(bot, user: dict, cfg: dict, panel_data: dict | None, amount: int | float, added_volume: float = 0, added_days: int = 0, payment_method: str = ""):
     """لاگ تمدید با قالب قابل ویرایش ادمین و روش پرداخت."""
-    service_name = get_config_service_username(cfg, panel_data)
-    package_name = get_config_package_name(cfg)
-    method = payment_method or "-"
-
     await log_order_to_channel(
         bot,
         order_label="🔁 تمدید سرویس",
         user=user,
-        username=user.get("username") or user.get("user_name"),
+        username=None,
         service_id=cfg.get("service_id"),
-        service_name=service_name,
-        package_text=package_name,
+        service_name=get_config_service_username(cfg, panel_data),
+        package_text=get_config_package_name(cfg),
         amount_text=f"{int(amount or 0):,} تومان" if amount else "رایگان",
         expiry_text=expiry_text_from_panel_data(panel_data, cfg.get("expiry")),
         renewal_details=_renewal_log_details(added_volume, added_days),
-        payment_method=method,
+        payment_method=payment_method or "-",
     )
-
-    # همه تمدیدهای موفق یک گزارش واحد برای ادمین دارند و روش پرداخت
-    # دقیقاً از همان مسیر تمدید به گزارش منتقل می‌شود.
-    try:
-        await send_rich(
-            bot,
-            ADMIN_ID,
-            admin_delivery_summary(
-                user,
-                service_name,
-                package_name,
-                int(amount or 0),
-                payment_method=method,
-            ),
-        )
-    except Exception:
-        logger.exception("ارسال گزارش تمدید برای ادمین ناموفق بود")
-
 
 
 async def _send_usage_alert(bot, user, cfg, percent):
@@ -223,6 +200,15 @@ async def _safe_send(bot, user, cfg, text, sticker_key: str | None = None, reply
 # 🛎 لاگ همه‌ی سفارش‌های نهایی‌شده (خرید/تمدید/تست رایگان/سرویس سفارشی) در
 # کانال «اعتماد»، با قالب ثابت.
 # ---------------------------------------------------------------------------
+async def fetch_username(bot, telegram_id) -> str:
+    """نام کاربری تلگرام را بدون اینکه خطای API جلوی ثبت لاگ را بگیرد برمی‌گرداند."""
+    try:
+        chat = await bot.get_chat(int(telegram_id))
+        return str(getattr(chat, "username", None) or "-").strip() or "-"
+    except Exception:
+        return "-"
+
+
 def _mask_telegram_id(telegram_id) -> str:
     """آیدی عددی را برای حفظ حریم خصوصی، در پیام کانال اعتماد به‌شکل ماسک‌شده
     نمایش می‌دهد؛ مثلاً 6512345515 → 65*****515 (۲ رقم اول + ۳ رقم آخر باقی می‌مانند)."""
@@ -291,10 +277,37 @@ async def log_order_to_channel(
     try:
         order_log_channel_id = bot_info.get("order_log_channel_id")
         if order_log_channel_id and str(order_log_channel_id) != "0":
-            # Entityهای ذخیره‌شده از خود Telegram برای متن نهایی معتبرند؛
-            # آن‌ها را دوباره با fallback emoji جابه‌جا نمی‌کنیم، چون همین کار
-            # باعث می‌شد Premium Emoji انتخاب‌شده در ادیتور به ایموجی معمولی برگردد.
-            await send_rich(bot, order_log_channel_id, text, _repair_custom_emoji=True)
+            # لاگ کانال باید همان Entityهای Premium/Custom Emoji ذخیره‌شده در
+            # قالب ادمین را مستقیماً به Telegram تحویل بدهد. مسیر عمومی send_rich
+            # در صورت ENTITY_TEXT_INVALID ممکن است برای ایمنی به متن ساده برگردد؛
+            # برای لاگ ابتدا Entity اصلی را ارسال می‌کنیم و فقط در صورت نامعتبر
+            # بودن offsetها، یک بار repair مخصوص Custom Emoji انجام می‌دهیم.
+            entities = getattr(text, "entities", None) or []
+            if entities:
+                normalized = _sanitize_entities_for_text(str(text), entities)
+                try:
+                    await bot.send_message(
+                        chat_id=order_log_channel_id,
+                        text=str(text),
+                        entities=normalized or None,
+                        parse_mode=None,
+                    )
+                except Exception as first_exc:
+                    repaired = await _repair_custom_emoji_entities(bot, str(text), entities)
+                    if repaired != normalized:
+                        try:
+                            await bot.send_message(
+                                chat_id=order_log_channel_id,
+                                text=str(text),
+                                entities=repaired or None,
+                                parse_mode=None,
+                            )
+                        except Exception:
+                            raise first_exc
+                    else:
+                        raise
+            else:
+                await bot.send_message(chat_id=order_log_channel_id, text=str(text), parse_mode=None)
         else:
             logger.warning("کانال لاگ سفارش تنظیم نشده است (order_log_channel_id=%r)", order_log_channel_id)
     except Exception:
@@ -311,7 +324,7 @@ def admin_delivery_summary(
 ) -> str:
     """گزارش تحویل/خرید برای پنل ادمین با روش پرداخت قابل ویرایش."""
     from utils import now_tehran
-    return t(
+    rendered = t(
         "admin_delivery_summary",
         customer=user.get("name") or "-",
         telegram_id=str(user.get("telegram_id") or "-"),
@@ -321,6 +334,16 @@ def admin_delivery_summary(
         payment_method=payment_method or "-",
         time=(when or now_tehran()).strftime("%Y-%m-%d %H:%M"),
     )
+    # اگر ادمین قبلاً قالب گزارش را شخصی کرده و {payment_method} را از آن حذف
+    # کرده باشد، این فیلد برای گزارش‌های خرید/تمدید نباید ناپدید شود.
+    if "نحوه پرداخت" not in str(rendered):
+        from text_catalog import RichText
+        suffix = f"\n💳 نحوه پرداخت: {payment_method or '-'}"
+        if getattr(rendered, "entities", None):
+            rendered = RichText(str(rendered) + suffix, list(rendered.entities))
+        else:
+            rendered = RichText(str(rendered) + suffix, [])
+    return rendered
 
 def report_uniquepay_create_success():
     _uniquepay_state["create_fail_streak"] = 0
