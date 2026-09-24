@@ -964,28 +964,37 @@ def admin_request_queue_menu(order_count: int = 0, receipt_count: int = 0):
 
 
 def admin_pending_receipts_keyboard(receipts):
-    """receipts: ردیف‌های جدول pending_receipts (kind='charge' یا 'plan_card')."""
+    """صف رسیدها با callback کوتاه و مستقل برای هر نوع رسید."""
     buttons = []
     for r in receipts:
-        # 🐛 فیکس: r["id"] (شناسه‌ی خود ردیف pending_receipts) را هم در callback_data می‌فرستیم تا در
-        # صف رسیدهای در انتظار هم که کاربر/مبلغشان یکسان است، قفل ضدتکرار با هم تداخل نکند.
         user = db.get_user(r.get("telegram_id"))
         profile_name = (user or {}).get("name") or "کاربر"
-        if r["kind"] == "charge":
+        kind = r.get("kind")
+
+        if kind == "charge":
             label = f"💰 شارژ {r['amount']:,} ت — {profile_name}"
             buttons.append([
-                InlineKeyboardButton(text=f"✅ {label}", callback_data=f"approve_{r['telegram_id']}_{r['amount']}_{r['id']}", style="success"),
-                InlineKeyboardButton(text="❌", callback_data=f"reject_{r['telegram_id']}_{r['id']}", style="danger"),
+                InlineKeyboardButton(text=f"✅ {label}", callback_data=f"approve_{r['telegram_id']}_{r['amount']}_{r['id']}"),
+                InlineKeyboardButton(text="❌", callback_data=f"reject_{r['telegram_id']}_{r['id']}"),
+            ])
+        elif kind in ("renew_card", "crypto_renew"):
+            # قبلاً extra این رسیدها (JSON) مستقیماً داخل callback_data قرار می‌گرفت
+            # و از سقف 64 بایت Telegram عبور می‌کرد؛ فقط receipt_id لازم است.
+            label = f"🔁 {r['label']} — {r['amount']:,} ت — {profile_name}"
+            buttons.append([
+                InlineKeyboardButton(text=f"✅ {label}", callback_data=f"approverenew|{r['id']}"),
+                InlineKeyboardButton(text="❌", callback_data=f"rejectrenew|{r['id']}"),
             ])
         else:  # plan_card
             label = f"💳 {r['label']} — {r['amount']:,} ت — {profile_name}"
+            plan_key = r.get("plan_key") or r.get("extra") or ""
             buttons.append([
-                InlineKeyboardButton(text=f"✅ {label}", callback_data=f"approvepay|{r['telegram_id']}|{r['extra']}|{r['amount']}|{r['id']}", style="success"),
-                InlineKeyboardButton(text="❌", callback_data=f"rejectpay|{r['telegram_id']}|{r['id']}", style="danger"),
+                InlineKeyboardButton(text=f"✅ {label}", callback_data=f"approvepay|{r['telegram_id']}|{plan_key}|{r['amount']}|{r['id']}"),
+                InlineKeyboardButton(text="❌", callback_data=f"rejectpay|{r['telegram_id']}|{r['id']}"),
             ])
     if receipts:
-        buttons.append([InlineKeyboardButton(text="🧹 علامت‌گذاری همه به‌عنوان بررسی‌شده", callback_data="clearreceipts_confirm", style="primary")])
-    buttons.append([InlineKeyboardButton(text="🔙 بازگشت", callback_data="admin_request_queue", style="primary")])
+        buttons.append([InlineKeyboardButton(text="🧹 علامت‌گذاری همه به‌عنوان بررسی‌شده", callback_data="clearreceipts_confirm")])
+    buttons.append([InlineKeyboardButton(text="🔙 بازگشت", callback_data="admin_request_queue")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -1391,14 +1400,16 @@ def admin_vip_category_detail_keyboard(category_key: str):
 
 
 def admin_vip_plan_detail_keyboard(plan_key: str, category_key: str):
+    # این کیبورد عمداً بدون style ارسال می‌شود؛ بعضی نسخه‌های Bot API روی
+    # style در همین پیام خطای «Invalid button style specified» برمی‌گردانند.
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✏️ ویرایش نام", callback_data=f"vipplanname_{plan_key}", style="primary")],
-        [InlineKeyboardButton(text="💰 ویرایش قیمت", callback_data=f"vipplanprice_{plan_key}", style="primary")],
-        [InlineKeyboardButton(text="📦 ویرایش حجم (گیگ)", callback_data=f"vipplangb_{plan_key}", style="primary")],
-        [InlineKeyboardButton(text="⏳ ویرایش مدت (روز، ۰=نامحدود)", callback_data=f"vipplandays_{plan_key}", style="primary")],
-        [InlineKeyboardButton(text="👥 ویرایش سقف کاربر (۰ تا ۱۰، 0=نامحدود)", callback_data=f"vipplanuserlimit_{plan_key}", style="primary")],
-        [InlineKeyboardButton(text="🗑 حذف این پلن", callback_data=f"delvipplan_{plan_key}", style="danger")],
-        [InlineKeyboardButton(text="🔙 بازگشت به دسته", callback_data=f"admincat_{category_key}", style="primary")],
+        [InlineKeyboardButton(text="✏️ ویرایش نام", callback_data=f"vipplanname_{plan_key}")],
+        [InlineKeyboardButton(text="💰 ویرایش قیمت", callback_data=f"vipplanprice_{plan_key}")],
+        [InlineKeyboardButton(text="📦 ویرایش حجم (گیگ)", callback_data=f"vipplangb_{plan_key}")],
+        [InlineKeyboardButton(text="⏳ ویرایش مدت (روز، ۰=نامحدود)", callback_data=f"vipplandays_{plan_key}")],
+        [InlineKeyboardButton(text="👥 ویرایش سقف کاربر (۰ تا ۱۰، 0=نامحدود)", callback_data=f"vipplanuserlimit_{plan_key}")],
+        [InlineKeyboardButton(text="🗑 حذف این پلن", callback_data=f"delvipplan_{plan_key}")],
+        [InlineKeyboardButton(text="🔙 بازگشت به دسته", callback_data=f"admincat_{category_key}")],
     ])
 
 
