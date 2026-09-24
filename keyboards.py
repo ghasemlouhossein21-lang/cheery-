@@ -1892,7 +1892,7 @@ def admin_vpn_panel_edit_menu_keyboard(panel: dict):
             buttons.append([InlineKeyboardButton(text="✏️ نام کاربری", callback_data=f"vpneditfield|{pid}|username", style="primary")])
             buttons.append([InlineKeyboardButton(text="✏️ رمز عبور", callback_data=f"vpneditfield|{pid}|password", style="primary")])
         other = "👤 یوزرنیم/پسورد" if auth_method == "api_key" else "🔑 API Key"
-        buttons.append([InlineKeyboardButton(text=f"🔀 تغییر روش اتصال به {other}", callback_data=f"vpnauthswitch|{pid}", style="secondary")])
+        buttons.append([InlineKeyboardButton(text=f"🔀 تغییر روش اتصال به {other}", callback_data=f"vpnauthswitch|{pid}", style="primary")])
     buttons.append([InlineKeyboardButton(text="🔙 بازگشت", callback_data=f"vpndetail|{pid}", style="primary")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
