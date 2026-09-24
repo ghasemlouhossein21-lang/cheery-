@@ -1376,7 +1376,7 @@ async def _fulfill_custom_renew(bot, order: dict, order_id: int, volume, days) -
         # خراب شدن کانال لاگ نباید باعث شود کاربر تصور کند تمدید پنل ناموفق بوده.
         logger.exception("ثبت لاگ کانال برای تمدید سفارش %s ناموفق بود", order_id)
     try:
-        await send_rich(bot, ADMIN_ID, alerts.admin_delivery_summary(user, actual_name, alerts.get_config_package_name(cfg), order.get("price", 0)))
+        await send_rich(bot, ADMIN_ID, alerts.admin_delivery_summary(user, actual_name, alerts.get_config_package_name(cfg), order.get("price", 0), payment_method=order.get("payment_method", "-")))
     except Exception:
         logger.exception("ارسال خلاصه تمدید برای ادمین ناموفق بود")
 
@@ -1476,7 +1476,7 @@ async def _deliver_panel_link(bot, ctx: dict, link: str):
         else:
             admin_package_name = f"{volume_text} | {days_text}"
         admin_amount = order_obj.get("price", 0) if order_obj else 0
-        admin_summary = alerts.admin_delivery_summary(user, name, admin_package_name, admin_amount)
+        admin_summary = alerts.admin_delivery_summary(user, name, admin_package_name, admin_amount, payment_method=(order_obj.get("payment_method", "-") if order_obj else "-"))
         await send_rich(bot, ADMIN_ID, admin_summary)
     except Exception as e:
         await bot.send_message(ADMIN_ID, f"⚠️ سرویس ساخته و ذخیره شد ولی ارسال پیام به کاربر ناموفق بود: {e}")
