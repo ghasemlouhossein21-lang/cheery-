@@ -1247,7 +1247,6 @@ async def _log_fulfilled_order(
         package_text=package_text,
         amount_text=amount_text,
         expiry_text=expiry_text,
-        payment_method=payment_method,
     )
 
     # گزارش ادمین از همین نقطه و فقط یک‌بار برای هر تحویل نهایی ارسال می‌شود.
