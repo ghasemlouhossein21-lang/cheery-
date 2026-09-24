@@ -1395,12 +1395,19 @@ async def approve_renewal(callback: types.CallbackQuery):
     if not receipt: await callback.answer("⚠️ رسید پیدا نشد.",show_alert=True); return
     ok,result=await _apply_admin_renewal(receipt)
     if not ok: await answer_rich(callback.message,f"❌ تمدید انجام نشد: {result}"); await callback.answer("❌ ناموفق",show_alert=True); return
-    volume,days,_,panel_data=result; db.resolve_pending_receipt_by_id(receipt_id)
+    volume,days,_,panel_data=result
+    db.resolve_pending_receipt_by_id(receipt_id)
     try:
         payload=json.loads(receipt.get("extra") or "{}")
     except Exception:
         payload={}
     cfg=db.get_config_by_id(payload.get("cfg_id")) if payload.get("cfg_id") else None
+    renew_user = db.get_user(receipt["telegram_id"]) or {}
+    db.record_purchase(
+        renew_user.get("id"),
+        int(receipt.get("amount") or 0),
+        f"تمدید {alerts.get_config_package_name(cfg or {})}",
+    )
     service_username=alerts.get_config_service_username(cfg or {}, panel_data)
     package_name=alerts.get_config_package_name(cfg or {})
     await _finish_receipt_message(callback.message,"\n\nتمدید تأیید و روی پنل اعمال شد.",queue_refresh=lambda:_render_pending_receipts(callback))
@@ -1412,7 +1419,7 @@ async def approve_renewal(callback: types.CallbackQuery):
     except Exception:
         logger.exception("ثبت لاگ تمدید کارت‌به‌کارت در کانال ناموفق بود")
     try:
-        await send_rich(callback.bot,ADMIN_ID,alerts.admin_delivery_summary(renew_user,service_username,package_name,int(receipt.get("amount") or 0)))
+        await send_rich(callback.bot,ADMIN_ID,alerts.admin_renewal_summary(renew_user, cfg or {}, panel_data, int(receipt.get("amount") or 0), volume, days))
     except Exception:
         logger.exception("ارسال خلاصه تأیید تمدید برای ادمین ناموفق بود")
     await callback.answer("✅ تمدید شد.")
@@ -1456,6 +1463,12 @@ async def approve_crypto_payment(callback: types.CallbackQuery):
         if not ok: await answer_rich(callback.message,f"❌ تمدید انجام نشد: {result}"); await callback.answer("❌ ناموفق",show_alert=True); return
         volume,days,_,panel_data=result; db.resolve_pending_receipt_by_id(receipt_id)
         cfg=db.get_config_by_id(payload.get("cfg_id")) if payload.get("cfg_id") else None
+        renew_user = db.get_user(receipt["telegram_id"]) or {}
+        db.record_purchase(
+            renew_user.get("id"),
+            int(receipt.get("amount") or 0),
+            f"تمدید {alerts.get_config_package_name(cfg or {})}",
+        )
         service_username=alerts.get_config_service_username(cfg or {}, panel_data)
         package_name=alerts.get_config_package_name(cfg or {})
         try: await send_rich(callback.bot,int(receipt["telegram_id"]),user_text("renew_done",service_name=service_username,details=_renewal_confirmation_details(panel_data, volume, days, fallback_expiry=cfg.get("expiry") if cfg else None)))
@@ -1466,7 +1479,7 @@ async def approve_crypto_payment(callback: types.CallbackQuery):
         except Exception:
             logger.exception("ثبت لاگ تمدید ارزی در کانال ناموفق بود")
         try:
-            await send_rich(callback.bot,ADMIN_ID,alerts.admin_delivery_summary(renew_user,service_username,package_name,int(receipt.get("amount") or 0)))
+            await send_rich(callback.bot,ADMIN_ID,alerts.admin_renewal_summary(renew_user, cfg or {}, panel_data, int(receipt.get("amount") or 0), volume, days))
         except Exception:
             logger.exception("ارسال خلاصه تأیید تمدید ارزی برای ادمین ناموفق بود")
         await _finish_receipt_message(callback.message,"\n\nپرداخت ارزی تأیید و تمدید انجام شد.",queue_refresh=lambda:_render_pending_receipts(callback)); await callback.answer("تمدید شد"); return
