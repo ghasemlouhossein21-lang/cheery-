@@ -214,6 +214,11 @@ TEXT_CATEGORIES = OrderedDict({
     ('crypto_not_configured', '❌ پرداخت ارزی هنوز توسط ادمین تنظیم نشده است.'),
     ('crypto_asset_unavailable', '❌ این ارز در حال حاضر در دسترس نیست.'),
     ],
+    '🧾 لاگ سفارش‌ها': [
+        ('order_log_purchase', '🛒 خرید جدید\n\n👤 مشتری: {customer_name}\n🆔 آیدی: {telegram_id}\n📌 شناسه کانفینگ: {service_name}\n📦 بسته: {package_name}\n💰 مبلغ: {amount}\n📅 انقضا: {expiry}\n⏰ زمان: {time} (به وقت تهران)'),
+        ('order_log_renewal', '🔁 تمدید سرویس\n\n💳 نحوه پرداخت: {payment_method}\n👤 مشتری: {customer_name}\n🆔 آیدی: {telegram_id}\n📌 شناسه کانفینگ: {service_name}\n📦 بسته: {package_name}\n{renewal_details}\n💰 مبلغ: {amount}\n⏰ زمان: {time} (به وقت تهران)'),
+        ('order_log_test', '🎁 تست رایگان\n\n👤 مشتری: {customer_name}\n🆔 آیدی: {telegram_id}\n📌 شناسه کانفینگ: {service_name}\n📦 بسته: {package_name}\n💰 مبلغ: رایگان\n📅 انقضا: {expiry}\n⏰ زمان: {time} (به وقت تهران)'),
+    ],
     '⚙️ عملیات سرویس': [
         ('config_enable', '▶️ فعال\u200cسازی سرویس'),
         ('config_disable', '⏸ غیرفعال\u200cسازی سرویس'),
