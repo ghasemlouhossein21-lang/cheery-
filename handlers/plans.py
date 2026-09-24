@@ -941,6 +941,11 @@ async def check_online_payment(callback: types.CallbackQuery):
             await answer_rich(callback.message, f"❌ تمدید روی پنل انجام نشد. پرداخت شما هنوز در وضعیت قابل بررسی است.\n{msg}", reply_markup=renew_payment_keyboard())
             return
         _save_renewal_snapshot(cfg, panel_data)
+        db.record_purchase(
+            db.get_user_by_id(cfg["user_id"])["id"],
+            int(payment.get("price") or 0),
+            f"تمدید {alerts.get_config_package_name(cfg)}",
+        )
         db.mark_online_payment_paid(payment["id"], None)
         added_volume = float(payload.get("volume_gb") or 0)
         added_days = int(payload.get("days") or 0)
@@ -952,7 +957,7 @@ async def check_online_payment(callback: types.CallbackQuery):
             logger.exception("ثبت لاگ تمدید آنلاین در کانال ناموفق بود")
         try:
             user_for_summary = db.get_user_by_id(cfg["user_id"]) or {}
-            await alerts.send_rich(callback.bot, ADMIN_ID, alerts.admin_delivery_summary(user_for_summary, service_name, alerts.get_config_package_name(cfg), int(payment.get("price") or 0)))
+            await alerts.send_rich(callback.bot, ADMIN_ID, alerts.admin_renewal_summary(user_for_summary, cfg, panel_data, int(payment.get("price") or 0), added_volume, added_days))
         except Exception:
             logger.exception("ارسال خلاصه تمدید آنلاین برای ادمین ناموفق بود")
         return
@@ -1430,7 +1435,7 @@ async def renew_pay_wallet(callback: types.CallbackQuery, state: FSMContext):
     except Exception:
         logger.exception("ثبت لاگ تمدید کیف پول در کانال ناموفق بود")
     try:
-        await alerts.send_rich(callback.bot, ADMIN_ID, alerts.admin_delivery_summary(user, service_name, alerts.get_config_package_name(cfg), price))
+        await alerts.send_rich(callback.bot, ADMIN_ID, alerts.admin_renewal_summary(user, cfg, panel_data, price, added_volume, added_days))
     except Exception:
         logger.exception("ارسال خلاصه تمدید کیف پول برای ادمین ناموفق بود")
     await callback.answer("تمدید شد")
