@@ -1231,6 +1231,9 @@ async def _log_fulfilled_order(
         label = "🔁 تمدید سرویس"
 
     username = await alerts.fetch_username(bot, user["telegram_id"])
+
+    payment_method = order.get("payment_method", "-") if order else "-"
+    
     await alerts.log_order_to_channel(
         bot,
         order_label=label,
@@ -1241,6 +1244,7 @@ async def _log_fulfilled_order(
         package_text=package_text,
         amount_text=amount_text,
         expiry_text=expiry_text,
+        payment_method=payment_method,
     )
 
 
