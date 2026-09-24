@@ -954,7 +954,7 @@ async def check_online_payment(callback: types.CallbackQuery):
             logger.exception("ثبت لاگ تمدید آنلاین در کانال ناموفق بود")
         try:
             user_for_summary = db.get_user_by_id(cfg["user_id"]) or {}
-            await alerts.send_rich(callback.bot, ADMIN_ID, alerts.admin_delivery_summary(user_for_summary, service_name, alerts.get_config_package_name(cfg), int(payment.get("price") or 0)))
+            await alerts.send_rich(callback.bot, ADMIN_ID, alerts.admin_delivery_summary(user_for_summary, service_name, alerts.get_config_package_name(cfg), int(payment.get("price") or 0), payment_method="پرداخت آنلاین"))
         except Exception:
             logger.exception("ارسال خلاصه تمدید آنلاین برای ادمین ناموفق بود")
         return
@@ -1432,7 +1432,7 @@ async def renew_pay_wallet(callback: types.CallbackQuery, state: FSMContext):
     except Exception:
         logger.exception("ثبت لاگ تمدید کیف پول در کانال ناموفق بود")
     try:
-        await alerts.send_rich(callback.bot, ADMIN_ID, alerts.admin_delivery_summary(user, service_name, alerts.get_config_package_name(cfg), price))
+        await alerts.send_rich(callback.bot, ADMIN_ID, alerts.admin_delivery_summary(user, service_name, alerts.get_config_package_name(cfg), price, payment_method="کیف پول"))
     except Exception:
         logger.exception("ارسال خلاصه تمدید کیف پول برای ادمین ناموفق بود")
     await callback.answer("تمدید شد")
