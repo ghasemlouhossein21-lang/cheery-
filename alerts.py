@@ -334,15 +334,6 @@ def admin_delivery_summary(
         payment_method=payment_method or "-",
         time=(when or now_tehran()).strftime("%Y-%m-%d %H:%M"),
     )
-    # اگر ادمین قبلاً قالب گزارش را شخصی کرده و {payment_method} را از آن حذف
-    # کرده باشد، این فیلد برای گزارش‌های خرید/تمدید نباید ناپدید شود.
-    if "نحوه پرداخت" not in str(rendered):
-        from text_catalog import RichText
-        suffix = f"\n💳 نحوه پرداخت: {payment_method or '-'}"
-        if getattr(rendered, "entities", None):
-            rendered = RichText(str(rendered) + suffix, list(rendered.entities))
-        else:
-            rendered = RichText(str(rendered) + suffix, [])
     return rendered
 
 def report_uniquepay_create_success():
