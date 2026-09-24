@@ -143,18 +143,39 @@ def expiry_text_from_panel_data(panel_data: dict | None, fallback: str | None = 
 
 
 async def log_renewal_to_channel(bot, user: dict, cfg: dict, panel_data: dict | None, amount: int | float, added_volume: float = 0, added_days: int = 0):
-    """لاگ تمدید را دقیقاً با همان قالب لاگ خرید، ولی با برچسب تمدید می‌فرستد."""
-    await log_order_to_channel(
-        bot,
-        order_label="🔁 تمدید سرویس",
-        user=user,
-        username=None,
-        service_id=cfg.get("service_id"),
-        service_name=get_config_service_username(cfg, panel_data),
-        package_text=get_config_package_name(cfg),
-        amount_text=f"{int(amount or 0):,} تومان" if amount else "رایگان",
-        expiry_text=expiry_text_from_panel_data(panel_data, cfg.get("expiry")),
-        renewal_details=_renewal_log_details(added_volume, added_days),
+    """لاگ تمدید با قالب مستقل و قابل تشخیص از لاگ خرید."""
+    text = admin_renewal_summary(user, cfg, panel_data, amount, added_volume, added_days)
+    try:
+        order_log_channel_id = bot_info.get("order_log_channel_id")
+        if order_log_channel_id and str(order_log_channel_id) != "0":
+            await send_rich(bot, order_log_channel_id, text)
+    except Exception:
+        logger.exception("ارسال لاگ تمدید به کانال اعتماد ناموفق بود")
+
+
+def admin_renewal_summary(
+    user: dict,
+    cfg: dict,
+    panel_data: dict | None,
+    amount: int | float = 0,
+    added_volume: float = 0,
+    added_days: int = 0,
+) -> str:
+    """پیام خلاصه‌ی تمدید برای ادمین؛ از پیام خرید جدا و با جزئیات قبل/اضافه/بعد."""
+    from utils import now_tehran
+
+    service_name = get_config_service_username(cfg or {}, panel_data)
+    package_name = get_config_package_name(cfg or {})
+    details = _renewal_log_details(panel_data, added_volume, added_days, (cfg or {}).get("expiry"))
+    return (
+        f"🔁 تمدید سرویس\n"
+        f"👤 نام: {user.get('name') or '-'}\n"
+        f"🆔 آیدی: {user.get('telegram_id') or '-'}\n"
+        f"📌 شناسه کانفیگ: {service_name}\n"
+        f"📦 بسته: {package_name}\n"
+        f"{details}\n"
+        f"💰 قیمت: {int(amount or 0):,} تومان\n"
+        f"⏰ تاریخ و ساعت: {now_tehran().strftime('%Y-%m-%d %H:%M')}"
     )
 
 
@@ -214,13 +235,69 @@ def _fix_unlimited_typo(value: str) -> str:
     return s.replace("نامدود", "نامحدود") if "نامدود" in s else s
 
 
-def _renewal_log_details(added_volume: float, added_days: int) -> str:
+def _renewal_log_details(panel_data: dict | None, added_volume: float, added_days: int, fallback_expiry=None) -> str:
+    """جزئیات تمدید را با همان منطق پیام موفقیت مشتری و فلش‌های قبل/اضافه/بعد می‌سازد."""
+    import math, time
+    data = panel_data or {}
+
+    total = data.get("total")
+    used = data.get("used", 0)
+    if total is not None:
+        try:
+            total_bytes = float(total)
+            used_bytes = float(used or 0)
+            remaining_gb = max(0.0, total_bytes - used_bytes) / (1024 ** 3)
+            if total_bytes <= 0:
+                previous_volume = new_volume = "نامحدود"
+            elif added_volume:
+                previous_volume = f"{max(0.0, remaining_gb - float(added_volume)):g} گیگ"
+                new_volume = f"{remaining_gb:g} گیگ"
+            else:
+                previous_volume = new_volume = f"{remaining_gb:g} گیگ"
+        except Exception:
+            previous_volume = new_volume = "نامشخص"
+    else:
+        previous_volume = new_volume = "بدون تغییر" if not added_volume else "نامشخص"
+
+    expire = data.get("expire") if "expire" in data else fallback_expiry
+    if expire is None or str(expire).strip().lower() in ("", "none"):
+        expire = fallback_expiry
+    if str(expire).strip() in ("0", "0.0"):
+        previous_days = new_days = "نامحدود"
+    elif expire:
+        try:
+            if isinstance(expire, (int, float)) or str(expire).strip().replace(".", "", 1).isdigit():
+                exp_value = float(expire)
+                if exp_value > 100000000000:
+                    exp_value /= 1000.0
+                new_days_num = max(0, int(math.ceil((exp_value - time.time()) / 86400)))
+            else:
+                from datetime import datetime
+                from zoneinfo import ZoneInfo
+                raw_expire = str(expire).strip().replace("Z", "+00:00")
+                try:
+                    exp_dt = datetime.fromisoformat(raw_expire)
+                except ValueError:
+                    exp_dt = datetime.strptime(raw_expire[:10], "%Y-%m-%d")
+                if exp_dt.tzinfo is None:
+                    exp_dt = exp_dt.replace(tzinfo=ZoneInfo("Asia/Tehran"))
+                new_days_num = max(0, int(math.ceil((exp_dt.timestamp() - time.time()) / 86400)))
+            if added_days:
+                previous_days = f"{max(0, new_days_num - int(added_days))} روز"
+                new_days = f"{new_days_num} روز"
+            else:
+                previous_days = new_days = f"{new_days_num} روز"
+        except Exception:
+            previous_days = new_days = "نامشخص"
+    else:
+        previous_days = new_days = "نامحدود"
+
     parts = []
     if added_volume:
-        parts.append(f"+{float(added_volume):g} گیگ")
+        parts.append(f"حجم\n{previous_volume}  ⬅️  +{float(added_volume):g} گیگ  ⬅️  {new_volume}")
     if added_days:
-        parts.append(f"+{int(added_days)} روز")
-    return " | ".join(parts) if parts else "بدون تغییر"
+        parts.append(f"مدت زمان\n{previous_days}  ⬅️  +{int(added_days)} روز  ⬅️  {new_days}")
+    return "\n\n".join(parts) if parts else "بدون تغییر"
 
 
 async def log_order_to_channel(
