@@ -14,7 +14,7 @@ from text_catalog import text as t
 from subscription import fetch_subscription_info, usage_bar, days_remaining, get_live_service_status
 from keyboards import back_button, fair_use_keyboard, service_alert_80_90_keyboard, service_expired_alert_keyboard
 import bot_info
-from utils import send_notification_sticker, _repair_custom_emoji_entities
+from utils import send_notification_sticker
 
 logger = logging.getLogger(__name__)
 
@@ -268,24 +268,11 @@ async def log_order_to_channel(
     try:
         order_log_channel_id = bot_info.get("order_log_channel_id")
         if order_log_channel_id and str(order_log_channel_id) != "0":
-            # لاگ سفارش‌ها ممکن است چند Premium/Custom Emoji داشته باشد.
-            # قبل از ارسال، entityهای قالبِ ذخیره‌شده را دوباره روی متن نهایی
-            # اعتبارسنجی/جابجا می‌کنیم تا جایگزینی متغیرها باعث حذف یا جابه‌جایی
-            # ایموجی‌های Premium نشود.
-            if getattr(text, "entities", None):
-                try:
-                    repaired = await _repair_custom_emoji_entities(bot, str(text), text.entities)
-                    await bot.send_message(
-                        chat_id=order_log_channel_id,
-                        text=str(text),
-                        entities=repaired or None,
-                        parse_mode=None,
-                    )
-                except Exception:
-                    # مسیر عمومی RichText همان رفتار قبلی را به‌عنوان fallback نگه می‌دارد.
-                    await send_rich(bot, order_log_channel_id, text)
-            else:
-                await send_rich(bot, order_log_channel_id, text)
+            # مسیر استاندارد ارسال RichText را حفظ می‌کنیم؛
+            # send_rich خودش entityهای Premium/Custom Emoji را روی متن نهایی
+            # اعتبارسنجی و ارسال می‌کند. ایجاد مسیر ارسال جداگانه اینجا می‌تواند
+            # باعث شود لاگ قبل از رسیدن به کانال fail شود.
+            await send_rich(bot, order_log_channel_id, text)
     except Exception:
         logger.exception("ارسال لاگ سفارش به کانال اعتماد ناموفق بود")
 
