@@ -158,6 +158,32 @@ async def log_renewal_to_channel(bot, user: dict, cfg: dict, panel_data: dict | 
         payment_method=payment_method or "-",
     )
 
+    # گزارش تمدید علاوه بر کانال لاگ، برای ادمین اصلی هم ارسال شود.
+    # این مسیر برای همه روش‌های پرداخت تمدید (کارت‌به‌کارت، ارزی، آنلاین و کیف پول) مشترک است.
+    try:
+        from config import ADMIN_ID
+        if ADMIN_ID:
+            from utils import send_rich
+            from utils import now_tehran
+            admin_text = t(
+                "order_log_renewal",
+                order_label="🔁 تمدید سرویس",
+                customer_name=user.get("name", "-"),
+                telegram_id=str(user.get("telegram_id") or "-"),
+                service_id=cfg.get("service_id") or "-",
+                service_name=get_config_service_username(cfg, panel_data) or "-",
+                package_name=get_config_package_name(cfg) or "-",
+                amount=f"{int(amount or 0):,} تومان" if amount else "رایگان",
+                expiry=expiry_text_from_panel_data(panel_data, cfg.get("expiry")),
+                time=now_tehran().strftime("%Y-%m-%d %H:%M"),
+                payment_method=payment_method or "-",
+                renewal_details=_renewal_log_details(added_volume, added_days),
+                username="-",
+            )
+            await send_rich(bot, ADMIN_ID, admin_text)
+    except Exception:
+        logger.exception("ارسال گزارش تمدید برای ادمین ناموفق بود")
+
 
 async def _send_usage_alert(bot, user, cfg, percent):
     bar = usage_bar(percent)
