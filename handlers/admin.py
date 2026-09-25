@@ -148,7 +148,7 @@ def _permission_for_callback(data: str | None) -> str | None:
         return "receipts"
     groups = [
         (("admin_stats",), "stats"),
-        (("admin_request_queue", "admin_order_queue", "dismissorder_", "clearorders", "marzbansend|", "fairuse_"), "requests"),
+        (("admin_request_queue", "admin_order_queue", "dismissorder_", "clearorders", "marzbansend|", "fairuse_yes_"), "requests"),
         (("admin_tickets", "admintickets_", "adminticket_", "ticketreply_", "ticketclose_", "ticketreopen_", "replyticket_"), "tickets"),
         (("admin_userlist", "userpage_", "useropen_", "accounting_", "admin_search", "admin_config_search", "useractions_", "pm_", "toggleblock_", "deleteuser_", "deleteuserconfirm_", "svcs_", "svcdetail_", "svcdelete_", "svcrestore_", "svcpurge", "svcedit_"), "users"),
         (("admin_broadcast",), "broadcast"),
@@ -1408,62 +1408,6 @@ async def _apply_admin_renewal(receipt):
         expiry = cfg.get("expiry")
     db.update_config_expiry(cfg["id"], expiry)
     return True,(volume,days,expiry,panel_data)
-
-@router.callback_query(F.data.startswith("fairuse_approve_"))
-async def approve_fair_use_request(callback: types.CallbackQuery):
-    if not _is_admin(callback.from_user.id):
-        await callback.answer("⛔ دسترسی ندارید.", show_alert=True)
-        return
-    cfg_id = int(callback.data.rsplit("_", 1)[1])
-    if not db.claim_admin_action(f"fairuse_approve_{cfg_id}"):
-        await callback.answer("⚠️ این درخواست قبلاً بررسی شده است.", show_alert=True)
-        return
-    cfg = db.get_config_by_id(cfg_id)
-    if not cfg:
-        await callback.answer("⚠️ سرویس پیدا نشد.", show_alert=True)
-        return
-    user = db.get_user_by_id(int(cfg.get("user_id") or 0))
-    if not user:
-        await callback.answer("⚠️ کاربر پیدا نشد.", show_alert=True)
-        return
-    try:
-        await send_rich(callback.bot, int(user["telegram_id"]), user_text("fair_use_approved"))
-    except Exception:
-        logger.exception("ارسال نتیجه تأیید Fair Use به کاربر ناموفق بود")
-    try:
-        await edit_rich(callback.message, (callback.message.text or "") + "\n\n✅ توسط ادمین تأیید شد.", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[]))
-    except Exception:
-        pass
-    await callback.answer("✅ درخواست تأیید شد.")
-
-
-@router.callback_query(F.data.startswith("fairuse_reject_"))
-async def reject_fair_use_request(callback: types.CallbackQuery):
-    if not _is_admin(callback.from_user.id):
-        await callback.answer("⛔ دسترسی ندارید.", show_alert=True)
-        return
-    cfg_id = int(callback.data.rsplit("_", 1)[1])
-    if not db.claim_admin_action(f"fairuse_reject_{cfg_id}"):
-        await callback.answer("⚠️ این درخواست قبلاً بررسی شده است.", show_alert=True)
-        return
-    cfg = db.get_config_by_id(cfg_id)
-    if not cfg:
-        await callback.answer("⚠️ سرویس پیدا نشد.", show_alert=True)
-        return
-    user = db.get_user_by_id(int(cfg.get("user_id") or 0))
-    if not user:
-        await callback.answer("⚠️ کاربر پیدا نشد.", show_alert=True)
-        return
-    try:
-        await send_rich(callback.bot, int(user["telegram_id"]), user_text("fair_use_rejected"))
-    except Exception:
-        logger.exception("ارسال نتیجه رد Fair Use به کاربر ناموفق بود")
-    try:
-        await edit_rich(callback.message, (callback.message.text or "") + "\n\n❌ توسط ادمین رد شد.", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[]))
-    except Exception:
-        pass
-    await callback.answer("❌ درخواست رد شد.")
-
 
 @router.callback_query(F.data.startswith("fairuse_yes_"))
 async def request_fair_use(callback: types.CallbackQuery):
