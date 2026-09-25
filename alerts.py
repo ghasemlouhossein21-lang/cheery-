@@ -11,9 +11,10 @@ import logging
 import crypto
 import database as db
 from text_catalog import text as t
-from subscription import fetch_subscription_info, usage_bar, days_remaining, get_live_service_status
-from keyboards import back_button, fair_use_keyboard, service_alert_80_90_keyboard, service_expired_alert_keyboard
+from subscription import fetch_subscription_info, usage_bar, days_remaining, get_live_service_status, format_bytes
+from keyboards import back_button, fair_use_keyboard, fair_use_admin_keyboard, service_alert_80_90_keyboard, service_expired_alert_keyboard
 import bot_info
+from config import ADMIN_ID
 from utils import send_notification_sticker, _repair_custom_emoji_entities, _sanitize_entities_for_text
 
 logger = logging.getLogger(__name__)
@@ -158,38 +159,38 @@ async def log_renewal_to_channel(bot, user: dict, cfg: dict, panel_data: dict | 
         payment_method=payment_method or "-",
     )
 
-    # گزارش تمدید علاوه بر کانال لاگ، برای ادمین اصلی هم ارسال شود.
-    # این مسیر برای همه روش‌های پرداخت تمدید (کارت‌به‌کارت، ارزی، آنلاین و کیف پول) مشترک است.
-    try:
-        from config import ADMIN_ID
-        if ADMIN_ID:
-            from utils import send_rich
-            from utils import now_tehran
-            admin_text = t(
-                "order_log_renewal",
-                order_label="🔁 تمدید سرویس",
-                customer_name=user.get("name", "-"),
-                telegram_id=str(user.get("telegram_id") or "-"),
-                service_id=cfg.get("service_id") or "-",
-                service_name=get_config_service_username(cfg, panel_data) or "-",
-                package_name=get_config_package_name(cfg) or "-",
-                amount=f"{int(amount or 0):,} تومان" if amount else "رایگان",
-                expiry=expiry_text_from_panel_data(panel_data, cfg.get("expiry")),
-                time=now_tehran().strftime("%Y-%m-%d %H:%M"),
-                payment_method=payment_method or "-",
-                renewal_details=_renewal_log_details(added_volume, added_days),
-                username="-",
-            )
-            await send_rich(bot, ADMIN_ID, admin_text)
-    except Exception:
-        logger.exception("ارسال گزارش تمدید برای ادمین ناموفق بود")
-
 
 async def _send_usage_alert(bot, user, cfg, percent):
     bar = usage_bar(percent)
     key = "notif_usage_90" if percent >= 90 else "notif_usage_80"
     text = t(key, plan=_config_package_name(cfg), percent=percent, bar=bar)
     return await _safe_send(bot, user, cfg, text, sticker_key=key, reply_markup=service_alert_80_90_keyboard(cfg["id"]))
+
+
+async def send_fair_use_request_to_admin(bot, user, cfg, fair_gb, usage=None):
+    """ارسال درخواست کاربر برای ادامه مصرف منصفانه به ادمین اصلی."""
+    usage = usage or {}
+    used_bytes = (usage.get("upload") or 0) + (usage.get("download") or 0)
+    service_id = str(cfg.get("service_id") or "-")
+    service_name = get_config_service_username(cfg, usage)
+    package_name = get_config_package_name(cfg)
+    username = str(user.get("username") or "-").lstrip("@")
+    customer_name = str(user.get("name") or "کاربر")
+    expiry = expiry_text_from_panel_data(usage, cfg.get("expiry"))
+    text = t(
+        "fair_use_admin_request",
+        customer_name=customer_name,
+        username=username,
+        telegram_id=user.get("telegram_id") or "-",
+        plan=package_name,
+        service_name=service_name,
+        service_id=service_id,
+        used=format_bytes(used_bytes),
+        fair_use_gb=f"{float(fair_gb):g}",
+        expiry=expiry,
+    )
+    await send_rich(bot, int(ADMIN_ID), text, reply_markup=fair_use_admin_keyboard(int(cfg["id"])))
+    return True
 
 
 async def _send_fair_use_alert(bot, user, cfg, fair_gb):
@@ -360,6 +361,15 @@ def admin_delivery_summary(
         payment_method=payment_method or "-",
         time=(when or now_tehran()).strftime("%Y-%m-%d %H:%M"),
     )
+    # اگر ادمین قبلاً قالب گزارش را شخصی کرده و {payment_method} را از آن حذف
+    # کرده باشد، این فیلد برای گزارش‌های خرید/تمدید نباید ناپدید شود.
+    if "نحوه پرداخت" not in str(rendered):
+        from text_catalog import RichText
+        suffix = f"\n💳 نحوه پرداخت: {payment_method or '-'}"
+        if getattr(rendered, "entities", None):
+            rendered = RichText(str(rendered) + suffix, list(rendered.entities))
+        else:
+            rendered = RichText(str(rendered) + suffix, [])
     return rendered
 
 def report_uniquepay_create_success():
