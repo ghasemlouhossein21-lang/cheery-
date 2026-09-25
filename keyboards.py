@@ -953,14 +953,6 @@ def admin_purge_confirm_keyboard(cfg_id: int):
     ])
 
 
-def fair_use_admin_keyboard(cfg_id: int):
-    """دکمه‌های تصمیم ادمین برای درخواست مصرف منصفانه."""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="✅ تأیید مصرف منصفانه", callback_data=f"fairuse_approve_{cfg_id}", style="success"),
-            InlineKeyboardButton(text="❌ رد درخواست", callback_data=f"fairuse_reject_{cfg_id}", style="danger"),
-        ]
-    ])
 
 
 def admin_request_queue_menu(order_count: int = 0, receipt_count: int = 0):
