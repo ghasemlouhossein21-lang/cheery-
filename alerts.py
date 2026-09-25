@@ -12,8 +12,9 @@ import crypto
 import database as db
 from text_catalog import text as t
 from subscription import fetch_subscription_info, usage_bar, days_remaining, get_live_service_status, format_bytes
-from keyboards import back_button, fair_use_keyboard, fair_use_admin_keyboard, service_alert_80_90_keyboard, service_expired_alert_keyboard
+from keyboards import back_button, fair_use_keyboard, service_alert_80_90_keyboard, service_expired_alert_keyboard
 import bot_info
+import panels
 from config import ADMIN_ID
 from utils import send_notification_sticker, _repair_custom_emoji_entities, _sanitize_entities_for_text
 
@@ -83,6 +84,12 @@ async def _check_single_config(bot, cfg):
         try: fair_gb=float(bot_info.get("fair_use_gb") or 0)
         except Exception: fair_gb=0
         if fair_gb>0 and used>=fair_gb*(1024**3) and not cfg.get("fair_use_alert_sent"):
+            # Fair Use برای سرویس نامحدود: ابتدا سرویس واقعاً در پنل غیرفعال می‌شود،
+            # سپس فقط یک‌بار هشدار برای کاربر ارسال می‌کنیم.
+            disabled_ok = await _disable_fair_use_service(cfg)
+            if not disabled_ok:
+                logger.error("غیرفعال‌سازی سرویس %s در پنل برای Fair Use ناموفق بود", cfg.get("id"))
+                return
             if await _send_fair_use_alert(bot,user,cfg,fair_gb):
                 db.set_fair_use_alert_sent(cfg["id"],True)
 
@@ -168,7 +175,7 @@ async def _send_usage_alert(bot, user, cfg, percent):
 
 
 async def send_fair_use_request_to_admin(bot, user, cfg, fair_gb, usage=None):
-    """ارسال درخواست کاربر برای ادامه مصرف منصفانه به ادمین اصلی."""
+    """ارسال درخواست کاربر برای ادامه مصرف منصفانه به ادمین اصلی، بدون دکمه."""
     usage = usage or {}
     used_bytes = (usage.get("upload") or 0) + (usage.get("download") or 0)
     service_id = str(cfg.get("service_id") or "-")
@@ -189,9 +196,31 @@ async def send_fair_use_request_to_admin(bot, user, cfg, fair_gb, usage=None):
         fair_use_gb=f"{float(fair_gb):g}",
         expiry=expiry,
     )
-    await send_rich(bot, int(ADMIN_ID), text, reply_markup=fair_use_admin_keyboard(int(cfg["id"])))
+    await send_rich(bot, int(ADMIN_ID), text)
     return True
 
+
+async def _disable_fair_use_service(cfg: dict) -> bool:
+    """سرویس نامحدود را در همان پنلی که از آن ساخته شده غیرفعال می‌کند."""
+    panel_id = cfg.get("panel_id")
+    service_id = str(cfg.get("service_id") or "").strip()
+    if not panel_id or not service_id:
+        logger.error("سرویس %s برای Fair Use پنل/شناسه سرویس ندارد", cfg.get("id"))
+        return False
+    try:
+        panel = db.get_vpn_panel(int(panel_id))
+        if not panel:
+            logger.error("پنل %s برای سرویس %s پیدا نشد", panel_id, cfg.get("id"))
+            return False
+        ok, msg = await panels.disable_service(panel, service_id)
+        if not ok:
+            logger.error("غیرفعال‌سازی Fair Use برای سرویس %s ناموفق بود: %s", cfg.get("id"), msg)
+            return False
+        logger.info("سرویس %s به دلیل رسیدن به Fair Use در پنل %s غیرفعال شد", cfg.get("id"), panel.get("name"))
+        return True
+    except Exception:
+        logger.exception("خطا در غیرفعال‌سازی Fair Use سرویس %s", cfg.get("id"))
+        return False
 
 async def _send_fair_use_alert(bot, user, cfg, fair_gb):
     text=t("notif_fair_use",plan=_config_package_name(cfg),fair_use_gb=f"{fair_gb:g}")
